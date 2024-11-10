@@ -34,7 +34,7 @@ app.use(
 //model
 require('./v1/models/index.model')
 //router
-app.use(require('./v1/routes/index.route'))
+app.use(require('./v1/routes/index.router'))
 
 // Error Handling Middleware called
 

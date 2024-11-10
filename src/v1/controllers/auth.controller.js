@@ -1,7 +1,7 @@
 const BasicController = require('../utils/controllers/basicController')
 const bindMethodsWithThisContext = require('../utils/classes/bindMethodsWithThisContext')
 const authService = require('../services/auth.service')
-class UserController extends BasicController {
+class AuthController extends BasicController {
 	constructor() {
 		super()
 		bindMethodsWithThisContext(this)
@@ -64,4 +64,4 @@ class UserController extends BasicController {
 	}
 }
 
-module.exports = new UserController()
+module.exports = new AuthController()

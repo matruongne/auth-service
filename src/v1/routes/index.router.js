@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const authRoute = require('./auth.route')
+const authRouter = require('./auth.router')
 
 router.get('/checkstatus', (req, res, next) => {
 	res.status(200).json({
@@ -9,6 +9,6 @@ router.get('/checkstatus', (req, res, next) => {
 	})
 })
 
-authRoute(router)
+authRouter(router)
 
 module.exports = router
