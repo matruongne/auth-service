@@ -18,7 +18,7 @@ const generateAuthToken = async payloads => {
 
 	const user_id = String(payloads.user_id)
 	try {
-		token = await redisClient.get('user_' + user_id)
+		token = await redisClient.get('user_token:' + user_id)
 	} catch (e) {
 		console.log('get token from redis failed', e)
 	}
@@ -31,7 +31,7 @@ const generateAuthToken = async payloads => {
 				expiresIn: JWT_ACCESS_TOKEN_EXPIRE,
 			}
 		)
-		await redisClient.set('user_' + user_id, token, 'EX', REDIS_TOKEN_EXPIRE_SECONDS)
+		await redisClient.set('user_token:' + user_id, token, 'EX', REDIS_TOKEN_EXPIRE_SECONDS)
 	}
 
 	return token

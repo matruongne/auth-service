@@ -77,7 +77,7 @@ class authService {
 		const user = await User.findOne({ where: { user_id: currentUser.user_id } })
 		user.refreshToken = null
 		await user.save()
-		await redisClient.del('user_' + currentUser.user_id)
+		await redisClient.del('user_token:' + currentUser.user_id)
 	}
 }
 

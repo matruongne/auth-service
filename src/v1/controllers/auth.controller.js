@@ -17,6 +17,12 @@ class AuthController extends BasicController {
 				maxAge: process.env.REFRESH_TOKEN_MAX_AGE_MILLISECONDS,
 			})
 
+			res.cookie('accessToken', accessToken, {
+				httpOnly: true,
+				sameSite: 'Strict',
+				maxAge: process.env.ACCESS_TOKEN_MAX_AGE_MILLISECONDS,
+			})
+
 			return res.status(201).json({ message: 'User registered successfully!', token: accessToken })
 		} catch (error) {
 			return this.handleResponseError(res, error)
@@ -31,6 +37,13 @@ class AuthController extends BasicController {
 				sameSite: 'Strict',
 				maxAge: process.env.REFRESH_TOKEN_MAX_AGE_MILLISECONDS,
 			})
+
+			res.cookie('accessToken', accessToken, {
+				httpOnly: true,
+				sameSite: 'Strict',
+				maxAge: process.env.ACCESS_TOKEN_MAX_AGE_MILLISECONDS,
+			})
+
 			return res.json({ token: accessToken })
 		} catch (error) {
 			return this.handleResponseError(res, error)
