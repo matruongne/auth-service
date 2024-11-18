@@ -1,6 +1,9 @@
 const BasicController = require('../utils/controllers/basicController')
 const bindMethodsWithThisContext = require('../utils/classes/bindMethodsWithThisContext')
 const authService = require('../services/auth.service')
+const { sendEmailToQueue } = require('../rabbitmq/publishs/emailPublisher')
+const { queueManager } = require('../rabbitmq/queueManager')
+
 class AuthController extends BasicController {
 	constructor() {
 		super()
@@ -9,8 +12,30 @@ class AuthController extends BasicController {
 
 	async register(req, res) {
 		try {
-			const { accessToken, refreshToken } = await authService.register(req.body)
+			const { email, verifyCode } = await authService.register(req.body)
 
+			const channel = await queueManager()
+			const dataSend = {
+				email: email,
+				verifyCode: verifyCode,
+			}
+			await sendEmailToQueue(channel, dataSend, 'register.success')
+
+			return res.status(201).json({
+				message: 'User registered successfully!',
+			})
+		} catch (error) {
+			return this.handleResponseError(res, error)
+		}
+	}
+
+	async verifyAccount(req, res) {
+		try {
+			const { accountStatus, accessToken, refreshToken } = await authService.verifyAccount(req.body)
+
+			if (!accountStatus) {
+				throw new Error('Verification account failed')
+			}
 			res.cookie('refreshToken', refreshToken, {
 				httpOnly: true,
 				sameSite: 'Strict',
@@ -23,7 +48,31 @@ class AuthController extends BasicController {
 				maxAge: process.env.ACCESS_TOKEN_MAX_AGE_MILLISECONDS,
 			})
 
-			return res.status(201).json({ message: 'User registered successfully!', token: accessToken })
+			return res.status(201).json({
+				success: true,
+				message: 'User verified account successfully',
+			})
+		} catch (error) {
+			return this.handleResponseError(res, error)
+		}
+	}
+
+	async resendVerificationCode(req, res) {
+		try {
+			const { email, newCode } = await authService.resendVerificationCode(req.body)
+
+			const channel = await queueManager()
+			const dataSend = {
+				email,
+				verifyCode: newCode,
+			}
+
+			await sendEmailToQueue(channel, dataSend, 'register.success')
+
+			return res.status(201).json({
+				success: true,
+				message: 'resend verification code successfully',
+			})
 		} catch (error) {
 			return this.handleResponseError(res, error)
 		}
@@ -53,8 +102,12 @@ class AuthController extends BasicController {
 	async refreshToken(req, res) {
 		try {
 			const token = await authService.refreshToken(req.cookies)
-
-			return res.status(200).json(token)
+			res.cookie('accessToken', token, {
+				httpOnly: true,
+				sameSite: 'Strict',
+				maxAge: process.env.ACCESS_TOKEN_MAX_AGE_MILLISECONDS,
+			})
+			return res.status(200).json({ token })
 		} catch (error) {
 			return this.handleResponseError(res, error)
 		}
@@ -62,14 +115,17 @@ class AuthController extends BasicController {
 
 	async logout(req, res) {
 		try {
-			await authService.clearToken(req.body)
+			await authService.clearToken({ currentUser: req.user })
 			res.clearCookie('refreshToken', {
 				httpOnly: true,
 				sameSite: 'Strict',
 			})
-
+			res.clearCookie('accessToken', {
+				httpOnly: true,
+				sameSite: 'Strict',
+			})
 			return res.json({
-				message: `User ${req.body.currentUser.user_id} has been logged out success`,
+				message: `User ${req.user.user_id} has been logged out success`,
 			})
 		} catch (error) {
 			return this.handleResponseError(res, error)

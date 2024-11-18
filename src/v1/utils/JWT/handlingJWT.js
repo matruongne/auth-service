@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken')
-const redisClient = require('../../configs/databases/init.redis')
 const User = require('../../models/user.model')
+const { REDIS_GET, REDIS_SETEX } = require('../../services/redis.service')
 
 const JWT_ACCESS_TOKEN_SECRET = Buffer.from(process.env.JWT_ACCESS_TOKEN_SECRET, 'base64')
 const JWT_REFRESH_TOKEN_SECRET = Buffer.from(process.env.JWT_REFRESH_TOKEN_SECRET, 'base64')
@@ -18,20 +18,27 @@ const generateAuthToken = async payloads => {
 
 	const user_id = String(payloads.user_id)
 	try {
-		token = await redisClient.get('user_token:' + user_id)
+		token = await REDIS_GET('user_token:' + user_id)
 	} catch (e) {
 		console.log('get token from redis failed', e)
 	}
 	if (!token) {
 		token = jwt.sign(
-			{ user: { user_id: payloads.user_id, username: payloads.username, email: payloads.email } },
+			{
+				user: {
+					user_id: payloads.user_id,
+					username: payloads.username,
+					email: payloads.email,
+					role: payloads?.Role?.role_name,
+				},
+			},
 			JWT_ACCESS_TOKEN_SECRET,
 			{
 				algorithm: 'HS256',
 				expiresIn: JWT_ACCESS_TOKEN_EXPIRE,
 			}
 		)
-		await redisClient.set('user_token:' + user_id, token, 'EX', REDIS_TOKEN_EXPIRE_SECONDS)
+		await REDIS_SETEX('user_token:' + user_id, REDIS_TOKEN_EXPIRE_SECONDS, token)
 	}
 
 	return token

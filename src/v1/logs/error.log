@@ -3,3 +3,13 @@ error: Nov-10-2024 15:05:46: 	400 - Invalid token or token expired
 error: Nov-10-2024 15:06:41: 	400 - Invalid token or token expired
 error: Nov-10-2024 15:06:48: 	400 - Invalid token or token expired
 error: Nov-10-2024 15:08:55: 	400 - Invalid token or token expired
+error: Nov-14-2024 13:07:26: 	404 - Target not exist
+error: Nov-14-2024 13:07:28: 	404 - Target not exist
+error: Nov-15-2024 15:42:49: 	409 - Target already exist
+error: Nov-17-2024 13:55:29: 	400 - Account doesn't verified
+error: Nov-17-2024 17:49:26: 	500 - Password incorrect
+error: Nov-17-2024 17:49:48: 	500 - Password incorrect
+error: Nov-17-2024 17:53:01: 	500 - Password incorrect
+error: Nov-17-2024 17:57:02: 	500 - Password incorrect
+error: Nov-17-2024 17:57:06: 	500 - Password incorrect
+error: Nov-17-2024 18:08:22: 	500 - Password incorrect

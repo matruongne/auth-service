@@ -4,13 +4,19 @@ const {
 	generateAuthToken,
 	generateRefreshTokenAndSaveIfNeeded,
 } = require('../utils/JWT/handlingJWT')
-const { User } = require('../models/index.model')
+const { User, Role } = require('../models/index.model')
 const {
 	TargetAlreadyExistException,
 	BadRequestException,
+	TargetNotExistException,
 } = require('../utils/exceptions/commonException')
-const redisClient = require('../configs/databases/init.redis')
-
+const { REDIS_SETEX, REDIS_DEL, REDIS_GET } = require('../services/redis.service')
+const {
+	generateVerificationCode,
+	getFromRedis,
+	saveToRedis,
+	deleteFromRedis,
+} = require('../utils/verifies/verifiesHandling')
 const JWT_REFRESH_TOKEN_SECRET = Buffer.from(process.env.JWT_REFRESH_TOKEN_SECRET, 'base64')
 
 class authService {
@@ -21,21 +27,126 @@ class authService {
 			throw new TargetAlreadyExistException()
 		}
 
+		const userRole = await Role.findOne({ where: { role_name: 'user' } })
+		if (!userRole) {
+			throw new Error('Default role "user" not found')
+		}
+
 		const salt = await bcrypt.genSalt(10)
 		const passwordHash = await bcrypt.hash(password, salt)
-		const newUser = await User.create({ username, password_hash: passwordHash, email, salt })
 
-		const accessToken = await generateAuthToken(newUser)
-		const refreshToken = await generateRefreshTokenAndSaveIfNeeded(newUser)
+		await User.create({
+			username,
+			password_hash: passwordHash,
+			email,
+			salt,
+			role_id: userRole.role_id,
+		})
+
+		const redisKey = `verify:${email}`
+
+		const verifyCode = generateVerificationCode()
+
+		await saveToRedis(redisKey, verifyCode, 300)
 
 		return {
-			accessToken,
-			refreshToken,
+			email,
+			verifyCode,
+		}
+	}
+
+	async verifyAccount({ email, verifyCode }) {
+		try {
+			const userWithRole = await User.findOne({
+				where: { email },
+				include: [{ model: Role, attributes: ['role_id', 'role_name'] }],
+			})
+			if (userWithRole.is_verified) {
+				throw new Error('User already have been verified')
+			}
+
+			const redisKey = `verify:${email}`
+			const attemptsKey = `verify-attempts:${email}`
+			const maxAttempts = 5
+
+			let attempts = await getFromRedis(attemptsKey)
+			attempts = attempts ? parseInt(attempts) : 0
+
+			if (attempts >= maxAttempts) {
+				throw new Error('Maximum verification attempts reached. Please request a new code.')
+			}
+
+			const code = await getFromRedis(redisKey)
+
+			if (!code) {
+				throw new Error('Verification code not found or expired.')
+			}
+
+			if (code !== verifyCode.toString()) {
+				await saveToRedis(attemptsKey, attempts + 1, 600)
+				throw new Error('Invalid verification code.')
+			}
+
+			await deleteFromRedis(redisKey)
+			await deleteFromRedis(attemptsKey)
+
+			const updatedRows = await User.update({ is_verified: true }, { where: { email } })
+
+			if (updatedRows === 0) {
+				throw new Error('User not found or already verified.')
+			}
+
+			const accessToken = await generateAuthToken(userWithRole)
+			const refreshToken = await generateRefreshTokenAndSaveIfNeeded(userWithRole)
+
+			return {
+				accountStatus: true,
+				accessToken,
+				refreshToken,
+				message: 'Verification successful. User logged in.',
+			}
+		} catch (error) {
+			console.error(`Verification failed for ${email}:`, error.message)
+			throw new Error(error.message || 'Verification failed.')
+		}
+	}
+
+	async resendVerificationCode({ email }) {
+		try {
+			const user = await User.findOne({
+				where: { email },
+			})
+			if (user.is_verified) {
+				throw new Error('User already have been verified')
+			}
+
+			const redisKey = `verify:${email}`
+			const existingCode = await getFromRedis(redisKey)
+
+			if (existingCode) {
+				throw new Error('A verification code is already active. Please wait until it expires.')
+			}
+
+			const newCode = generateVerificationCode()
+			await saveToRedis(redisKey, newCode, 600)
+
+			return { email, newCode }
+		} catch (error) {
+			console.error(`Failed to resend verification code for ${email}:`, error.message)
+			throw new Error(error.message || 'Failed to resend verification code.')
 		}
 	}
 
 	async login({ username, password }) {
-		const existingUser = await User.findOne({ where: { username } })
+		const existingUser = await User.findOne({
+			where: { username },
+			include: [
+				{
+					model: Role,
+					attributes: ['role_id', 'role_name'],
+				},
+			],
+		})
 
 		if (!existingUser) {
 			throw new TargetNotExistException()
@@ -44,6 +155,12 @@ class authService {
 
 		if (!isValid) {
 			throw new BadRequestException('Password incorrect')
+		}
+
+		const isVerified = existingUser.is_verified
+
+		if (!isVerified) {
+			throw new BadRequestException("Account doesn't verified")
 		}
 
 		const accessToken = await generateAuthToken(existingUser)
@@ -77,7 +194,7 @@ class authService {
 		const user = await User.findOne({ where: { user_id: currentUser.user_id } })
 		user.refreshToken = null
 		await user.save()
-		await redisClient.del('user_token:' + currentUser.user_id)
+		await REDIS_DEL('user_token:' + currentUser.user_id)
 	}
 }
 

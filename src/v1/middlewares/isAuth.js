@@ -1,18 +1,21 @@
 const jwt = require('jsonwebtoken')
-const redisClient = require('../configs/databases/init.redis')
+const { BadRequestException } = require('../utils/exceptions/commonException')
+const JWT_ACCESS_TOKEN_SECRET = Buffer.from(process.env.JWT_ACCESS_TOKEN_SECRET, 'base64')
 
-const authenticateToken = async (req, res, next) => {
+const authenticateToken = (req, res, next) => {
 	try {
-		token = await redisClient.get('user_token:' + user_id)
+		token = req.cookies?.accessToken
 	} catch (e) {
-		console.log('get token from redis failed:', e.message)
+		console.log('get token from cookies failed:', e.message)
 		return res.sendStatus(403)
 	}
-	jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET, (err, user) => {
-		if (err) return res.sendStatus(403)
-		req.user = user
+	try {
+		const user = jwt.verify(token, JWT_ACCESS_TOKEN_SECRET)
+		req.user = user.user
 		next()
-	})
+	} catch (err) {
+		throw new BadRequestException('Unauthorized Error: Invalid token or token expired', 401, 401)
+	}
 }
 
 module.exports = authenticateToken
