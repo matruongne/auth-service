@@ -1,4 +1,4 @@
-const { REDIS_GET, REDIS_SETEX, REDIS_DEL } = require('../../services/redis.service')
+const { REDIS_GET, REDIS_SETEX, REDIS_DEL } = require('../../services/redisServices/redis.service')
 const crypto = require('crypto')
 
 function generateVerificationCode() {

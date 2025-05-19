@@ -1,9 +1,7 @@
 const jwt = require('jsonwebtoken')
 const User = require('../../models/user.model')
-const { REDIS_GET, REDIS_SETEX } = require('../../services/redis.service')
+const { REDIS_GET, REDIS_SETEX } = require('../../services/redisServices/redis.service')
 
-const JWT_ACCESS_TOKEN_SECRET = Buffer.from(process.env.JWT_ACCESS_TOKEN_SECRET, 'base64')
-const JWT_REFRESH_TOKEN_SECRET = Buffer.from(process.env.JWT_REFRESH_TOKEN_SECRET, 'base64')
 const JWT_ACCESS_TOKEN_EXPIRE = process.env.JWT_ACCESS_TOKEN_EXPIRE || '2h'
 const JWT_REFRESH_TOKEN_EXPIRE = process.env.JWT_REFRESH_TOKEN_EXPIRE || '7d'
 const REDIS_TOKEN_EXPIRE_SECONDS = 7190
@@ -32,7 +30,7 @@ const generateAuthToken = async payloads => {
 					role: payloads?.Role?.role_name,
 				},
 			},
-			JWT_ACCESS_TOKEN_SECRET,
+			process.env.JWT_ACCESS_TOKEN_SECRET,
 			{
 				algorithm: 'HS256',
 				expiresIn: JWT_ACCESS_TOKEN_EXPIRE,
@@ -51,16 +49,20 @@ const generateRefreshTokenAndSaveIfNeeded = async payloads => {
 
 	if (currentRefreshToken) {
 		try {
-			jwt.verify(currentRefreshToken, JWT_REFRESH_TOKEN_SECRET)
+			jwt.verify(currentRefreshToken, process.env.JWT_REFRESH_TOKEN_SECRET)
 			return currentRefreshToken
 		} catch (error) {
-			console.log('Existing refresh token is invalid or expired', err.message)
+			console.log('Existing refresh token is invalid or expired', error.message)
 		}
 	}
-	const newRefreshToken = jwt.sign({ user_id: existingUser.user_id }, JWT_REFRESH_TOKEN_SECRET, {
-		algorithm: 'HS256',
-		expiresIn: JWT_REFRESH_TOKEN_EXPIRE,
-	})
+	const newRefreshToken = jwt.sign(
+		{ user_id: existingUser.user_id },
+		process.env.JWT_REFRESH_TOKEN_SECRET,
+		{
+			algorithm: 'HS256',
+			expiresIn: JWT_REFRESH_TOKEN_EXPIRE,
+		}
+	)
 
 	payloads.refreshToken = newRefreshToken
 	await payloads.save()

@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken')
 const { BadRequestException } = require('../utils/exceptions/commonException')
-const JWT_ACCESS_TOKEN_SECRET = Buffer.from(process.env.JWT_ACCESS_TOKEN_SECRET, 'base64')
 
 const authenticateToken = (req, res, next) => {
+	let token
 	try {
 		token = req.cookies?.accessToken
 	} catch (e) {
@@ -10,7 +10,7 @@ const authenticateToken = (req, res, next) => {
 		return res.sendStatus(403)
 	}
 	try {
-		const user = jwt.verify(token, JWT_ACCESS_TOKEN_SECRET)
+		const user = jwt.verify(token, process.env.JWT_ACCESS_TOKEN_SECRET)
 		req.user = user.user
 		next()
 	} catch (err) {

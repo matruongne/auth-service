@@ -1,8 +1,8 @@
-const BasicController = require('../utils/controllers/basicController')
-const bindMethodsWithThisContext = require('../utils/classes/bindMethodsWithThisContext')
-const authService = require('../services/auth.service')
-const { sendEmailToQueue } = require('../rabbitmq/publishs/emailPublisher')
-const { queueManager } = require('../rabbitmq/queueManager')
+const BasicController = require('../../utils/controllers/basicController')
+const bindMethodsWithThisContext = require('../../utils/classes/bindMethodsWithThisContext')
+const authService = require('../../services/authServices/auth.service')
+const { sendEmailToQueue } = require('../../rabbitmq/publishs/emailPublisher')
+const { queueManager } = require('../../rabbitmq/queueManager')
 
 class AuthController extends BasicController {
 	constructor() {
@@ -22,6 +22,7 @@ class AuthController extends BasicController {
 			await sendEmailToQueue(channel, dataSend, 'register.success')
 
 			return res.status(201).json({
+				success: true,
 				message: 'User registered successfully!',
 			})
 		} catch (error) {
@@ -38,13 +39,13 @@ class AuthController extends BasicController {
 			}
 			res.cookie('refreshToken', refreshToken, {
 				httpOnly: true,
-				sameSite: 'Strict',
+				sameSite: 'Lax',
 				maxAge: process.env.REFRESH_TOKEN_MAX_AGE_MILLISECONDS,
 			})
 
 			res.cookie('accessToken', accessToken, {
 				httpOnly: true,
-				sameSite: 'Strict',
+				sameSite: 'Lax',
 				maxAge: process.env.ACCESS_TOKEN_MAX_AGE_MILLISECONDS,
 			})
 
@@ -83,17 +84,31 @@ class AuthController extends BasicController {
 			const { accessToken, refreshToken } = await authService.login(req.body)
 			res.cookie('refreshToken', refreshToken, {
 				httpOnly: true,
-				sameSite: 'Strict',
+				sameSite: 'Lax',
 				maxAge: process.env.REFRESH_TOKEN_MAX_AGE_MILLISECONDS,
 			})
 
 			res.cookie('accessToken', accessToken, {
 				httpOnly: true,
-				sameSite: 'Strict',
+				sameSite: 'Lax',
 				maxAge: process.env.ACCESS_TOKEN_MAX_AGE_MILLISECONDS,
 			})
 
 			return res.json({ token: accessToken })
+		} catch (error) {
+			return this.handleResponseError(res, error)
+		}
+	}
+
+	async checkAuth(req, res) {
+		try {
+			// Lấy thông tin xác thực từ cookie của request
+			const userData = await authService.checkAuth(req.cookies)
+			return res.status(200).json({
+				success: true,
+				data: userData,
+				message: 'User is authenticated',
+			})
 		} catch (error) {
 			return this.handleResponseError(res, error)
 		}
@@ -104,7 +119,7 @@ class AuthController extends BasicController {
 			const token = await authService.refreshToken(req.cookies)
 			res.cookie('accessToken', token, {
 				httpOnly: true,
-				sameSite: 'Strict',
+				sameSite: 'Lax',
 				maxAge: process.env.ACCESS_TOKEN_MAX_AGE_MILLISECONDS,
 			})
 			return res.status(200).json({ token })
@@ -118,13 +133,14 @@ class AuthController extends BasicController {
 			await authService.clearToken({ currentUser: req.user })
 			res.clearCookie('refreshToken', {
 				httpOnly: true,
-				sameSite: 'Strict',
+				sameSite: 'Lax',
 			})
 			res.clearCookie('accessToken', {
 				httpOnly: true,
-				sameSite: 'Strict',
+				sameSite: 'Lax',
 			})
 			return res.json({
+				success: true,
 				message: `User ${req.user.user_id} has been logged out success`,
 			})
 		} catch (error) {

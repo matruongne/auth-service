@@ -3,55 +3,59 @@ const bcrypt = require('bcrypt')
 const {
 	generateAuthToken,
 	generateRefreshTokenAndSaveIfNeeded,
-} = require('../utils/JWT/handlingJWT')
-const { User, Role } = require('../models/index.model')
+} = require('../../utils/JWT/handlingJWT')
+const { User, Role } = require('../../models/index.model')
 const {
 	TargetAlreadyExistException,
 	BadRequestException,
 	TargetNotExistException,
-} = require('../utils/exceptions/commonException')
-const { REDIS_SETEX, REDIS_DEL, REDIS_GET } = require('../services/redis.service')
+} = require('../../utils/exceptions/commonException')
+const { REDIS_SETEX, REDIS_DEL, REDIS_GET } = require('../redisServices/redis.service')
 const {
 	generateVerificationCode,
 	getFromRedis,
 	saveToRedis,
 	deleteFromRedis,
-} = require('../utils/verifies/verifiesHandling')
-const JWT_REFRESH_TOKEN_SECRET = Buffer.from(process.env.JWT_REFRESH_TOKEN_SECRET, 'base64')
+} = require('../../utils/verifies/verifiesHandling')
 
 class authService {
 	async register({ username, password, email }) {
-		const existingUser = await User.findOne({ where: { username } })
+		try {
+			const existingUser = await User.findOne({ where: { username } })
 
-		if (existingUser) {
-			throw new TargetAlreadyExistException()
-		}
+			if (existingUser) {
+				throw new TargetAlreadyExistException()
+			}
 
-		const userRole = await Role.findOne({ where: { role_name: 'user' } })
-		if (!userRole) {
-			throw new Error('Default role "user" not found')
-		}
+			const userRole = await Role.findOne({ where: { role_name: 'user' } })
+			if (!userRole) {
+				throw new Error('Default role "user" not found')
+			}
 
-		const salt = await bcrypt.genSalt(10)
-		const passwordHash = await bcrypt.hash(password, salt)
+			const salt = await bcrypt.genSalt(10)
+			const passwordHash = await bcrypt.hash(password, salt)
 
-		await User.create({
-			username,
-			password_hash: passwordHash,
-			email,
-			salt,
-			role_id: userRole.role_id,
-		})
+			await User.create({
+				username,
+				password_hash: passwordHash,
+				email,
+				salt,
+				role_id: userRole.role_id,
+			})
 
-		const redisKey = `verify:${email}`
+			const redisKey = `verify:${email}`
 
-		const verifyCode = generateVerificationCode()
+			const verifyCode = generateVerificationCode()
 
-		await saveToRedis(redisKey, verifyCode, 300)
+			await saveToRedis(redisKey, verifyCode, 300)
 
-		return {
-			email,
-			verifyCode,
+			return {
+				email,
+				verifyCode,
+			}
+		} catch (error) {
+			console.error(`Register Account for ${email}:`, error.message)
+			throw new Error(error.message || 'Register Account failed.')
 		}
 	}
 
@@ -172,10 +176,24 @@ class authService {
 		}
 	}
 
+	async checkAuth(cookies) {
+		const accessToken = cookies.accessToken
+		if (!accessToken) {
+			throw new Error('Access token not found')
+		}
+		try {
+			// Giải mã accessToken với JWT_SECRET
+			const decoded = jwt.verify(accessToken, process.env.JWT_ACCESS_TOKEN_SECRET)
+			return decoded // decoded chứa thông tin user được mã hóa trong token
+		} catch (err) {
+			throw new Error('Invalid or expired access token')
+		}
+	}
+
 	async refreshToken({ refreshToken }) {
 		let user_id
 		try {
-			const data = jwt.verify(refreshToken, JWT_REFRESH_TOKEN_SECRET)
+			const data = jwt.verify(refreshToken, process.env.JWT_REFRESH_TOKEN_SECRET)
 			user_id = data.user_id
 		} catch (err) {
 			throw new BadRequestException('Invalid token or token expired')
